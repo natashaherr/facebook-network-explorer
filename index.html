@@ -70,12 +70,27 @@
   /* LAYOUT */
   .layout {
     display: grid;
-    grid-template-columns: 320px 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: 280px 1fr;
     gap: 0;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+  }
+
+  @media (max-width: 700px) {
+    .layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    .sidebar {
+      grid-row: auto !important;
+      height: auto !important;
+      max-height: 40vh;
+      border-right: none !important;
+      border-bottom: 1px solid var(--border);
+    }
+    header { padding: 14px 16px; }
+    .header-meta { display: none; }
   }
 
   /* SIDEBAR */
@@ -682,17 +697,11 @@ function buildCharts() {
   });
 }
 
-buildCharts();
-
 // ─── NETWORK VISUALIZATION ────────────────────────────────────────────────────
 let simulation, svgEl, zoomBehavior, gMain;
 let selectedNode = null;
 
-function initNetwork() {
-  const container = document.getElementById('map-panel');
-  const rect = container.getBoundingClientRect();
-  const W = rect.width > 10 ? rect.width : window.innerWidth - 320;
-  const H = rect.height > 10 ? rect.height : window.innerHeight - 130;
+function initNetworkWithSize(W, H) {
 
   svgEl = d3.select('#network-svg')
     .attr('width', W)
@@ -879,39 +888,31 @@ function switchTab(name) {
 
 // Init on load
 window.addEventListener('load', () => {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      initNetwork();
-      // After simulation settles, re-center using actual dimensions
-      setTimeout(() => {
-        const p = document.getElementById('map-panel');
-        const W = p.clientWidth;
-        const H = p.clientHeight;
-        if (simulation && W > 100 && H > 100) {
-          svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
-          simulation
-            .force('center', d3.forceCenter(W / 2, H / 2))
-            .force('charge', d3.forceManyBody().strength(-180))
-            .alpha(0.8)
-            .restart();
-        }
-      }, 200);
-      setTimeout(() => {
-        const bars = document.querySelectorAll('.bar-segment');
-        bars.forEach(b => { const w = b.style.width; b.style.width='0'; setTimeout(()=>b.style.width=w,100); });
-      }, 300);
-    });
-  });
-});
+  buildCharts();
+  const panel = document.getElementById('map-panel');
 
-window.addEventListener('resize', () => {
-  if (svgEl) {
-    const p = document.getElementById('map-panel');
-    const W = p.clientWidth;
-    const H = p.clientHeight || window.innerHeight - 130;
-    svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
-    if (simulation) simulation.force('center', d3.forceCenter(W/2, H/2)).alpha(0.1).restart();
-  }
+  // Use ResizeObserver for reliable size detection
+  let initialized = false;
+  const ro = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const W = entry.contentRect.width;
+      const H = entry.contentRect.height;
+      if (W < 10 || H < 10) continue;
+      if (!initialized) {
+        initialized = true;
+        initNetworkWithSize(W, H);
+      } else if (svgEl) {
+        svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+        if (simulation) simulation.force('center', d3.forceCenter(W/2, H/2)).alpha(0.3).restart();
+      }
+    }
+  });
+  ro.observe(panel);
+
+  setTimeout(() => {
+    const bars = document.querySelectorAll('.bar-segment');
+    bars.forEach(b => { const w = b.style.width; b.style.width='0'; setTimeout(()=>b.style.width=w,100); });
+  }, 400);
 });
 </script>
 </body>
