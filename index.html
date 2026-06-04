@@ -258,7 +258,7 @@
   .panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
   /* MAP PANEL */
-  #map-panel { position: relative; overflow: hidden; background: var(--bg); flex: 1; min-height: 0; }
+  #map-panel { position: relative; overflow: hidden; background: var(--bg); flex: 1; min-height: 0; height: 100%; }
 
   #network-svg {
     width: 100%;
@@ -691,10 +691,12 @@ let selectedNode = null;
 function initNetwork() {
   const container = document.getElementById('map-panel');
   const rect = container.getBoundingClientRect();
-  const W = rect.width || window.innerWidth - 320;
-  const H = rect.height || window.innerHeight - 73 - 57;
+  const W = rect.width > 10 ? rect.width : window.innerWidth - 320;
+  const H = rect.height > 10 ? rect.height : window.innerHeight - 130;
 
   svgEl = d3.select('#network-svg')
+    .attr('width', W)
+    .attr('height', H)
     .attr('viewBox', `0 0 ${W} ${H}`);
 
   zoomBehavior = d3.zoom()
@@ -892,7 +894,10 @@ window.addEventListener('load', () => {
 window.addEventListener('resize', () => {
   if (svgEl) {
     const p = document.getElementById('map-panel');
-    svgEl.attr('viewBox', `0 0 ${p.clientWidth} ${p.clientHeight}`);
+    const W = p.clientWidth;
+    const H = p.clientHeight || window.innerHeight - 130;
+    svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+    if (simulation) simulation.force('center', d3.forceCenter(W/2, H/2)).alpha(0.1).restart();
   }
 });
 </script>
