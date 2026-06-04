@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facebook Network Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3d;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --accent3: #43e97b;
+    --accent4: #f7971e;
+    --glow: rgba(108, 99, 255, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    padding: 24px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--text); }
+
+  .header-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  .header-meta strong { color: var(--accent3); }
+
+  /* LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    grid-row: 1 / 3;
+    height: 100%;
+  }
+
+  .sidebar-section {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* STAT CARDS */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card:hover { border-color: var(--accent); }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* LEADERBOARD */
+  .leaderboard { display: flex; flex-direction: column; gap: 6px; }
+
+  .leader-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+  }
+
+  .leader-row:hover {
+    border-color: var(--accent);
+    background: var(--glow);
+    transform: translateX(3px);
+  }
+
+  .leader-row.highlighted {
+    border-color: var(--accent);
+    background: var(--glow);
+  }
+
+  .rank {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    width: 18px;
+    flex-shrink: 0;
+  }
+
+  .rank.top3 { color: var(--accent4); font-weight: 700; }
+
+  .node-id {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .conn-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--accent3);
+    font-weight: 700;
+  }
+
+  .bar-bg {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 4px;
+    flex-shrink: 0;
+    width: 50px;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 2px;
+  }
+
+  /* MAIN AREA */
+  .main-top {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+
+  .tab-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 7px 16px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+
+  .tab-btn:hover { color: var(--text); border-color: var(--muted); }
+  .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .spacer { flex: 1; }
+
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 4px;
+    width: 160px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-input::placeholder { color: var(--muted); }
+  .search-input:focus { border-color: var(--accent); }
+
+  /* PANELS */
+  .panel { display: none; flex: 1; }
+  .panel.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  /* MAP PANEL */
+  #map-panel { position: relative; overflow: hidden; background: var(--bg); flex: 1; min-height: 0; }
+
+  #network-svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  #network-svg:active { cursor: grabbing; }
+
+  .node-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    min-width: 160px;
+  }
+
+  .tooltip-id {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .tooltip-stat { font-size: 12px; color: var(--muted); margin: 2px 0; }
+  .tooltip-stat strong { color: var(--text); }
+
+  .map-hint {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.8;
+  }
+
+  /* CHART PANEL */
+  #chart-panel { padding: 32px; overflow-y: auto; }
+
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 900px;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .chart-card.wide { grid-column: 1 / 3; }
+
+  .chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+
+  .bar-label {
+    font-family: 'Space Mono', monospace;
+    width: 50px;
+    color: var(--muted);
+    text-align: right;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-segment {
+    height: 100%;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.85);
+    white-space: nowrap;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* DONUT */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-key { color: var(--muted); flex: 1; }
+  .legend-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text); }
+
+  /* COMMUNITY COLORS */
+  .comm-0 { fill: var(--accent); }
+  .comm-1 { fill: var(--accent2); }
+  .comm-2 { fill: var(--accent3); }
+  .comm-3 { fill: var(--accent4); }
+  .comm-4 { fill: #888; }
+
+  /* NODE INFO PANEL */
+  .node-info-panel {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px 20px;
+    min-width: 200px;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .node-info-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .info-row { font-size: 13px; color: var(--muted); margin: 5px 0; }
+  .info-row strong { color: var(--text); }
+
+  .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .close-btn:hover { color: var(--text); }
+
+  /* LINK & NODE SVG STYLES */
+  .link { stroke: #2a2a4a; stroke-width: 1px; opacity: 0.6; transition: opacity 0.2s; }
+  .link.highlighted { stroke: var(--accent); stroke-width: 2px; opacity: 1; }
+
+  .node { cursor: pointer; transition: r 0.2s; }
+  .node:hover { filter: brightness(1.4); }
+  .node.dimmed { opacity: 0.15; }
+  .node.selected { filter: brightness(1.5) drop-shadow(0 0 6px var(--accent)); }
+
+  /* CONTROLS */
+  .map-controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ctrl-btn {
+    width: 32px;
+    height: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* SHIMMER LOADING */
+  @keyframes shimmer {
+    0% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.3; }
+  }
+
+  .loading-msg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    animation: shimmer 1.5s infinite;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">graph<span>·</span>explorer</div>
+  <div class="header-meta">
+    Facebook Social Network &nbsp;·&nbsp; SNAP Dataset<br>
+    <strong>4,039</strong> users &nbsp;·&nbsp; <strong>88,234</strong> connections
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">Network Overview</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">4,039</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">88,234</div>
+          <div class="stat-label">Friendships</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--accent3)">21.85</div>
+          <div class="stat-label">Avg Friends</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--accent2)">1,045</div>
+          <div class="stat-label">Max Friends</div>
+        </div>
+        <div class="stat-card" style="grid-column:1/3">
+          <div class="stat-value" style="font-size:16px; color:var(--accent4)">0.0011</div>
+          <div class="stat-label">Network Density (sparse, real-world typical)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Top 10 Most Connected</div>
+      <div class="leaderboard" id="leaderboard"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div style="display:flex; flex-direction:column; overflow:hidden; min-height:0; height:100%;">
+
+    <div class="main-top">
+      <button class="tab-btn active" onclick="switchTab('map')">Network Map</button>
+      <button class="tab-btn" onclick="switchTab('chart')">Charts & Stats</button>
+      <div class="spacer"></div>
+      <input class="search-input" id="search-input" placeholder="Search node ID…" type="number" min="0" oninput="searchNode(this.value)">
+    </div>
+
+    <!-- MAP PANEL -->
+    <div class="panel active" id="map-panel">
+      <div class="loading-msg" id="loading">Initializing force simulation…</div>
+      <svg id="network-svg"></svg>
+
+      <div class="node-info-panel" id="node-info">
+        <button class="close-btn" onclick="clearSelection()">×</button>
+        <div class="node-info-title" id="info-title">Node #—</div>
+        <div class="info-row">Friends: <strong id="info-deg">—</strong></div>
+        <div class="info-row">Rank: <strong id="info-rank">—</strong></div>
+        <div class="info-row">Community: <strong id="info-comm">—</strong></div>
+      </div>
+
+      <div class="map-controls">
+        <button class="ctrl-btn" title="Zoom in" onclick="zoomIn()">+</button>
+        <button class="ctrl-btn" title="Zoom out" onclick="zoomOut()">−</button>
+        <button class="ctrl-btn" title="Reset view" onclick="resetZoom()" style="font-size:12px">⟳</button>
+      </div>
+
+      <div class="node-tooltip" id="tooltip"></div>
+      <div class="map-hint">Scroll to zoom · Drag to pan<br>Click node to inspect</div>
+    </div>
+
+    <!-- CHART PANEL -->
+    <div class="panel" id="chart-panel">
+      <div class="chart-grid">
+
+        <div class="chart-card wide">
+          <div class="chart-title">Degree Distribution — How Many Friends Does Each User Have?</div>
+          <div class="bar-chart" id="dist-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Top 10 Nodes by Connections</div>
+          <div class="bar-chart" id="top10-chart"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Community Breakdown</div>
+          <div class="donut-wrap">
+            <svg id="donut-svg" width="120" height="120"></svg>
+            <div class="donut-legend" id="donut-legend"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const NETWORK = {"stats":{"total_nodes":4039,"total_edges":20020,"avg_degree":9.91,"max_degree":219,"min_degree":2,"density":0.002455},"top10":[{"id":25,"connections":219},{"id":4,"connections":217},{"id":22,"connections":193},{"id":6,"connections":189},{"id":13,"connections":184},{"id":5,"connections":183},{"id":9,"connections":181},{"id":7,"connections":169},{"id":1,"connections":167},{"id":10,"connections":153}],"degree_dist":{"1-5":1427,"6-10":1578,"11-25":829,"26-50":146,"51-100":41,"100+":18},"sample_nodes":[{"id":0,"degree":64,"community":0},{"id":1,"degree":167,"community":0},{"id":2,"degree":133,"community":0},{"id":3,"degree":131,"community":0},{"id":4,"degree":217,"community":0},{"id":5,"degree":183,"community":0},{"id":6,"degree":189,"community":0},{"id":7,"degree":169,"community":0},{"id":8,"degree":142,"community":0},{"id":9,"degree":181,"community":0},{"id":10,"degree":153,"community":0},{"id":11,"degree":83,"community":0},{"id":12,"degree":103,"community":0},{"id":13,"degree":184,"community":0},{"id":14,"degree":112,"community":0},{"id":16,"degree":57,"community":0},{"id":17,"degree":115,"community":0},{"id":20,"degree":46,"community":1},{"id":21,"degree":62,"community":0},{"id":22,"degree":193,"community":0},{"id":23,"degree":75,"community":0},{"id":25,"degree":219,"community":0},{"id":26,"degree":75,"community":0},{"id":27,"degree":97,"community":0},{"id":28,"degree":116,"community":0},{"id":29,"degree":92,"community":0},{"id":30,"degree":54,"community":0},{"id":31,"degree":81,"community":0},{"id":35,"degree":103,"community":0},{"id":36,"degree":69,"community":0},{"id":37,"degree":56,"community":0},{"id":38,"degree":54,"community":0},{"id":39,"degree":55,"community":0},{"id":40,"degree":68,"community":0},{"id":43,"degree":60,"community":0},{"id":45,"degree":52,"community":0},{"id":46,"degree":46,"community":1},{"id":48,"degree":80,"community":0},{"id":49,"degree":48,"community":1},{"id":50,"degree":52,"community":0},{"id":52,"degree":56,"community":0},{"id":56,"degree":43,"community":1},{"id":58,"degree":43,"community":1},{"id":62,"degree":57,"community":0},{"id":63,"degree":46,"community":1},{"id":64,"degree":72,"community":0},{"id":65,"degree":78,"community":0},{"id":70,"degree":82,"community":0},{"id":80,"degree":71,"community":0},{"id":82,"degree":63,"community":0},{"id":84,"degree":77,"community":0},{"id":85,"degree":49,"community":1},{"id":87,"degree":58,"community":0},{"id":88,"degree":49,"community":1},{"id":90,"degree":57,"community":0},{"id":92,"degree":76,"community":0},{"id":93,"degree":48,"community":1},{"id":98,"degree":54,"community":0},{"id":102,"degree":58,"community":0},{"id":108,"degree":44,"community":1},{"id":109,"degree":51,"community":0},{"id":114,"degree":65,"community":0},{"id":121,"degree":42,"community":1},{"id":122,"degree":46,"community":1},{"id":123,"degree":58,"community":0},{"id":127,"degree":50,"community":1},{"id":129,"degree":72,"community":0},{"id":132,"degree":59,"community":0},{"id":137,"degree":52,"community":0},{"id":138,"degree":64,"community":0},{"id":140,"degree":57,"community":0},{"id":142,"degree":49,"community":1},{"id":149,"degree":44,"community":1},{"id":176,"degree":42,"community":1},{"id":195,"degree":56,"community":0},{"id":198,"degree":43,"community":1},{"id":222,"degree":42,"community":1},{"id":242,"degree":45,"community":1},{"id":266,"degree":43,"community":1},{"id":307,"degree":43,"community":1}],"sample_edges":[{"source":23,"target":109},{"source":1,"target":80},{"source":10,"target":142},{"source":4,"target":30},{"source":13,"target":90},{"source":80,"target":82},{"source":12,"target":82},{"source":1,"target":3},{"source":87,"target":98},{"source":17,"target":52},{"source":10,"target":12},{"source":9,"target":28},{"source":11,"target":50},{"source":43,"target":70},{"source":9,"target":85},{"source":87,"target":102},{"source":22,"target":242},{"source":10,"target":16},{"source":5,"target":22},{"source":14,"target":31},{"source":7,"target":149},{"source":1,"target":11},{"source":88,"target":114},{"source":43,"target":50},{"source":3,"target":4},{"source":8,"target":27},{"source":0,"target":3},{"source":9,"target":65},{"source":2,"target":25},{"source":17,"target":36},{"source":16,"target":28},{"source":9,"target":122},{"source":22,"target":63},{"source":9,"target":16},{"source":13,"target":82},{"source":8,"target":88},{"source":138,"target":266},{"source":1,"target":129},{"source":62,"target":84},{"source":5,"target":10},{"source":27,"target":37},{"source":22,"target":43},{"source":3,"target":98},{"source":10,"target":114},{"source":45,"target":108},{"source":13,"target":62},{"source":6,"target":22},{"source":2,"target":37},{"source":28,"target":132},{"source":23,"target":85},{"source":56,"target":62},{"source":123,"target":129},{"source":4,"target":6},{"source":7,"target":11},{"source":4,"target":10},{"source":43,"target":46},{"source":2,"target":21},{"source":36,"target":140},{"source":9,"target":37},{"source":1,"target":40},{"source":31,"target":40},{"source":28,"target":39},{"source":88,"target":90},{"source":6,"target":10},{"source":22,"target":88},{"source":64,"target":98},{"source":22,"target":222},{"source":7,"target":48},{"source":14,"target":64},{"source":6,"target":14},{"source":5,"target":6},{"source":9,"target":98},{"source":10,"target":29},{"source":109,"target":142},{"source":9,"target":45},{"source":2,"target":5},{"source":12,"target":22},{"source":0,"target":93},{"source":35,"target":63},{"source":3,"target":17},{"source":2,"target":9},{"source":14,"target":48},{"source":9,"target":122},{"source":22,"target":88},{"source":4,"target":23},{"source":58,"target":70},{"source":5,"target":35},{"source":62,"target":138},{"source":13,"target":140},{"source":4,"target":27},{"source":11,"target":43},{"source":58,"target":127},{"source":80,"target":266},{"source":62,"target":195},{"source":30,"target":98},{"source":8,"target":93},{"source":8,"target":40},{"source":38,"target":40},{"source":26,"target":140},{"source":2,"target":38},{"source":7,"target":8},{"source":17,"target":25},{"source":16,"target":17},{"source":1,"target":4},{"source":13,"target":14},{"source":9,"target":58},{"source":14,"target":28},{"source":4,"target":198},{"source":4,"target":11},{"source":23,"target":37},{"source":22,"target":109},{"source":40,"target":46},{"source":49,"target":242},{"source":11,"target":31},{"source":4,"target":149},{"source":14,"target":142},{"source":98,"target":108},{"source":2,"target":26},{"source":28,"target":121},{"source":27,"target":30},{"source":6,"target":92},{"source":6,"target":39},{"source":1,"target":45},{"source":38,"target":85},{"source":4,"target":129},{"source":30,"target":37},{"source":3,"target":38},{"source":102,"target":127},{"source":36,"target":149},{"source":0,"target":37},{"source":5,"target":7},{"source":84,"target":137},{"source":9,"target":46},{"source":2,"target":6},{"source":1,"target":49},{"source":48,"target":82},{"source":43,"target":88},{"source":28,"target":48},{"source":8,"target":65},{"source":38,"target":65},{"source":5,"target":11},{"source":8,"target":12},{"source":2,"target":10},{"source":4,"target":56},{"source":23,"target":82},{"source":17,"target":21},{"source":35,"target":121},{"source":43,"target":92},{"source":13,"target":63},{"source":1,"target":29},{"source":84,"target":198},{"source":13,"target":39},{"source":36,"target":80},{"source":21,"target":40},{"source":25,"target":108},{"source":92,"target":122},{"source":4,"target":64},{"source":12,"target":35},{"source":9,"target":87},{"source":88,"target":140},{"source":48,"target":70},{"source":52,"target":138},{"source":87,"target":132},{"source":3,"target":30},{"source":6,"target":7},{"source":3,"target":6},{"source":17,"target":62},{"source":10,"target":22},{"source":9,"target":38},{"source":48,"target":127},{"source":3,"target":87},{"source":28,"target":93},{"source":102,"target":176},{"source":36,"target":64},{"source":5,"target":56},{"source":35,"target":56},{"source":6,"target":11},{"source":1,"target":17},{"source":3,"target":10},{"source":6,"target":121},{"source":36,"target":121},{"source":43,"target":84},{"source":46,"target":85},{"source":25,"target":43},{"source":3,"target":14},{"source":10,"target":30},{"source":5,"target":36},{"source":13,"target":31},{"source":7,"target":29},{"source":1,"target":25},{"source":6,"target":129},{"source":2,"target":39},{"source":14,"target":49},{"source":11,"target":48},{"source":21,"target":65},{"source":8,"target":45},{"source":1,"target":5},{"source":25,"target":27},{"source":10,"target":14},{"source":4,"target":36},{"source":28,"target":85},{"source":129,"target":137},{"source":8,"target":102},{"source":1,"target":62},{"source":9,"target":140},{"source":25,"target":84},{"source":1,"target":9},{"source":26,"target":149},{"source":20,"target":88},{"source":37,"target":70},{"source":266,"target":307},{"source":0,"target":1},{"source":9,"target":63},{"source":39,"target":90},{"source":9,"target":10},{"source":13,"target":129},{"source":1,"target":13},{"source":37,"target":127},{"source":6,"target":36},{"source":50,"target":92},{"source":25,"target":35},{"source":5,"target":28},{"source":0,"target":5},{"source":9,"target":14},{"source":27,"target":31},{"source":6,"target":93},{"source":4,"target":20},{"source":16,"target":30},{"source":3,"target":63},{"source":13,"target":80},{"source":48,"target":266},{"source":45,"target":102},{"source":3,"target":39},{"source":0,"target":9},{"source":5,"target":8},{"source":8,"target":90},{"source":3,"target":43},{"source":2,"target":35},{"source":5,"target":12},{"source":2,"target":198},{"source":22,"target":45},{"source":84,"target":142},{"source":27,"target":149},{"source":43,"target":93},{"source":40,"target":63},{"source":13,"target":64},{"source":50,"target":80},{"source":12,"target":56},{"source":40,"target":307},{"source":1,"target":58},{"source":56,"target":198},{"source":4,"target":8},{"source":25,"target":56},{"source":62,"target":123},{"source":8,"target":21},{"source":4,"target":65},{"source":28,"target":114},{"source":22,"target":29},{"source":6,"target":8},{"source":50,"target":64},{"source":21,"target":25},{"source":88,"target":92},{"source":6,"target":12},{"source":38,"target":58},{"source":109,"target":140},{"source":9,"target":43},{"source":2,"target":3},{"source":4,"target":49},{"source":25,"target":121},{"source":108,"target":132},{"source":10,"target":108},{"source":5,"target":114},{"source":28,"target":45},{"source":13,"target":56},{"source":1,"target":22},{"source":8,"target":9},{"source":65,"target":222},{"source":20,"target":48},{"source":2,"target":7},{"source":14,"target":46},{"source":122,"target":195},{"source":2,"target":11},{"source":21,"target":90},{"source":5,"target":98},{"source":25,"target":52},{"source":3,"target":23},{"source":12,"target":85},{"source":5,"target":45},{"source":35,"target":45},{"source":13,"target":40},{"source":9,"target":84},{"source":37,"target":38},{"source":22,"target":25},{"source":9,"target":31},{"source":25,"target":109},{"source":3,"target":80},{"source":1,"target":10},{"source":0,"target":26},{"source":27,"target":52},{"source":28,"target":90},{"source":1,"target":14},{"source":140,"target":307},{"source":9,"target":92},{"source":11,"target":114},{"source":3,"target":7},{"source":0,"target":6},{"source":7,"target":22},{"source":17,"target":307},{"source":49,"target":195},{"source":0,"target":87},{"source":10,"target":80},{"source":70,"target":80},{"source":64,"target":129},{"source":45,"target":50},{"source":10,"target":137},{"source":16,"target":35},{"source":26,"target":28},{"source":6,"target":45},{"source":52,"target":123},{"source":82,"target":123},{"source":5,"target":37},{"source":22,"target":70},{"source":56,"target":138},{"source":7,"target":30},{"source":27,"target":93},{"source":4,"target":82},{"source":36,"target":102},{"source":1,"target":2},{"source":11,"target":102},{"source":10,"target":11},{"source":5,"target":17},{"source":22,"target":50},{"source":11,"target":49},{"source":17,"target":27},{"source":40,"target":121},{"source":20,"target":138},{"source":48,"target":92},{"source":1,"target":6},{"source":21,"target":123},{"source":13,"target":16},{"source":17,"target":84},{"source":46,"target":127},{"source":0,"target":132},{"source":11,"target":82},{"source":4,"target":13},{"source":11,"target":29},{"source":8,"target":26},{"source":0,"target":2},{"source":4,"target":17},{"source":1,"target":43},{"source":30,"target":35},{"source":88,"target":93},{"source":2,"target":28},{"source":123,"target":307},{"source":85,"target":149},{"source":10,"target":109},{"source":70,"target":109},{"source":11,"target":13},{"source":7,"target":242},{"source":6,"target":17},{"source":5,"target":9},{"source":9,"target":48},{"source":2,"target":8},{"source":28,"target":50},{"source":6,"target":21},{"source":5,"target":13},{"source":25,"target":49},{"source":2,"target":65},{"source":16,"target":121},{"source":64,"target":138},{"source":8,"target":14},{"source":1,"target":108},{"source":102,"target":109},{"source":5,"target":176},{"source":35,"target":176},{"source":2,"target":12},{"source":4,"target":5},{"source":21,"target":38},{"source":4,"target":62},{"source":84,"target":176},{"source":4,"target":9},{"source":22,"target":26},{"source":84,"target":123},{"source":12,"target":90},{"source":31,"target":92},{"source":12,"target":13},{"source":6,"target":62},{"source":36,"target":62},{"source":22,"target":140},{"source":29,"target":127},{"source":0,"target":31},{"source":9,"target":93},{"source":14,"target":63},{"source":3,"target":8},{"source":3,"target":142},{"source":14,"target":39},{"source":20,"target":122},{"source":142,"target":195},{"source":5,"target":58},{"source":0,"target":222},{"source":6,"target":13},{"source":0,"target":35},{"source":27,"target":114},{"source":62,"target":108},{"source":3,"target":12},{"source":10,"target":28},{"source":13,"target":29},{"source":2,"target":4},{"source":4,"target":50},{"source":7,"target":27},{"source":2,"target":114},{"source":108,"target":109},{"source":26,"target":29},{"source":27,"target":65},{"source":36,"target":127},{"source":40,"target":195}]};
+
+const COMM_COLORS = ['#6c63ff','#ff6584','#43e97b','#f7971e','#888888'];
+const COMM_NAMES = ['Super-connectors','High degree','Medium degree','Low degree','Peripheral'];
+
+// ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+const lb = document.getElementById('leaderboard');
+const maxConn = NETWORK.top10[0].connections;
+NETWORK.top10.forEach((d,i) => {
+  const row = document.createElement('div');
+  row.className = 'leader-row';
+  row.id = `leader-${d.id}`;
+  row.onclick = () => focusNode(d.id);
+  const pct = (d.connections / maxConn * 100).toFixed(0);
+  row.innerHTML = `
+    <span class="rank ${i<3?'top3':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</span>
+    <div style="flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span class="node-id">Node ${d.id}</span>
+        <span class="conn-count">${d.connections}</span>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
+    </div>
+  `;
+  lb.appendChild(row);
+});
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function buildCharts() {
+  // Degree distribution
+  const distEl = document.getElementById('dist-chart');
+  const dist = NETWORK.degree_dist;
+  const total = Object.values(dist).reduce((a,b)=>a+b,0);
+  const distColors = ['#43e97b','#6c63ff','#f7971e','#ff6584','#888','#fff'];
+  Object.entries(dist).forEach(([k,v],i) => {
+    const pct = (v/total*100).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <span class="bar-label">${k}</span>
+      <div class="bar-track">
+        <div class="bar-segment" style="width:${pct}%;background:${distColors[i]}">
+          ${pct > 5 ? v.toLocaleString() : ''}
+        </div>
+      </div>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);width:45px;text-align:right">${pct}%</span>
+    `;
+    distEl.appendChild(row);
+  });
+
+  // Top 10 bar chart
+  const top10El = document.getElementById('top10-chart');
+  NETWORK.top10.forEach((d,i) => {
+    const pct = (d.connections / NETWORK.top10[0].connections * 100).toFixed(0);
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.style.cursor = 'pointer';
+    row.onclick = () => { switchTab('map'); setTimeout(() => focusNode(d.id), 100); };
+    row.innerHTML = `
+      <span class="bar-label">#${d.id}</span>
+      <div class="bar-track">
+        <div class="bar-segment" style="width:${pct}%;background:linear-gradient(90deg,#6c63ff,#43e97b)">${d.connections}</div>
+      </div>
+    `;
+    top10El.appendChild(row);
+  });
+
+  // Donut
+  const comm_counts = [0,0,0,0,0];
+  NETWORK.sample_nodes.forEach(n => comm_counts[n.community]++);
+  const total2 = comm_counts.reduce((a,b)=>a+b,0);
+  const donutSvg = d3.select('#donut-svg');
+  const r = 50, cx = 60, cy = 60, innerR = 28;
+  let angle = 0;
+  const legendEl = document.getElementById('donut-legend');
+  comm_counts.forEach((cnt,i) => {
+    if (cnt === 0) return;
+    const frac = cnt / total2;
+    const start = angle;
+    const end = angle + frac * 2 * Math.PI;
+    const x1 = cx + r*Math.sin(start), y1 = cy - r*Math.cos(start);
+    const x2 = cx + r*Math.sin(end), y2 = cy - r*Math.cos(end);
+    const xi1 = cx + innerR*Math.sin(start), yi1 = cy - innerR*Math.cos(start);
+    const xi2 = cx + innerR*Math.sin(end), yi2 = cy - innerR*Math.cos(end);
+    const large = frac > 0.5 ? 1 : 0;
+    donutSvg.append('path')
+      .attr('d', `M${xi1},${yi1} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${xi2},${yi2} A${innerR},${innerR} 0 ${large} 0 ${xi1},${yi1}Z`)
+      .attr('fill', COMM_COLORS[i])
+      .attr('opacity', 0.9);
+    angle = end;
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-dot" style="background:${COMM_COLORS[i]}"></div><span class="legend-key">${COMM_NAMES[i]}</span><span class="legend-val">${cnt}</span>`;
+    legendEl.appendChild(item);
+  });
+}
+
+buildCharts();
+
+// ─── NETWORK VISUALIZATION ────────────────────────────────────────────────────
+let simulation, svgEl, zoomBehavior, gMain;
+let selectedNode = null;
+
+function initNetwork() {
+  const container = document.getElementById('map-panel');
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+
+  svgEl = d3.select('#network-svg')
+    .attr('viewBox', `0 0 ${W} ${H}`);
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.3, 5])
+    .on('zoom', e => gMain.attr('transform', e.transform));
+
+  svgEl.call(zoomBehavior);
+
+  gMain = svgEl.append('g');
+
+  const nodes = NETWORK.sample_nodes.map(n => ({ ...n }));
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  const links = NETWORK.sample_edges
+    .filter(e => nodeMap[e.source] && nodeMap[e.target])
+    .map(e => ({ source: e.source, target: e.target }));
+
+  const maxDeg = d3.max(nodes, d => d.degree);
+
+  const link = gMain.append('g').selectAll('line')
+    .data(links).join('line').attr('class','link');
+
+  const node = gMain.append('g').selectAll('circle')
+    .data(nodes).join('circle')
+    .attr('class', 'node')
+    .attr('r', d => 3 + (d.degree / maxDeg) * 14)
+    .attr('fill', d => COMM_COLORS[d.community])
+    .attr('stroke', '#0a0a0f')
+    .attr('stroke-width', 1.5)
+    .on('mouseover', (e,d) => showTooltip(e,d))
+    .on('mousemove', e => moveTooltip(e))
+    .on('mouseout', hideTooltip)
+    .on('click', (e,d) => { e.stopPropagation(); selectNode(d); });
+
+  svgEl.on('click', clearSelection);
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(40).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(d => 4 + (d.degree/maxDeg)*14))
+    .on('tick', () => {
+      link
+        .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+      node.attr('cx', d => d.x).attr('cy', d => d.y);
+    })
+    .on('end', () => {
+      document.getElementById('loading').style.display = 'none';
+    });
+
+  node.call(d3.drag()
+    .on('start', (e,d) => { if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on('drag', (e,d) => { d.fx=e.x; d.fy=e.y; })
+    .on('end', (e,d) => { if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  window._graphNodes = node;
+  window._graphLinks = link;
+  window._graphNodeData = nodes;
+  window._graphLinkData = links;
+}
+
+function showTooltip(e, d) {
+  if (selectedNode) return;
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = `
+    <div class="tooltip-id">Node #${d.id}</div>
+    <div class="tooltip-stat">Friends: <strong>${d.degree}</strong></div>
+    <div class="tooltip-stat">Community: <strong style="color:${COMM_COLORS[d.community]}">${COMM_NAMES[d.community]}</strong></div>
+  `;
+  tip.style.opacity = 1;
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const panel = document.getElementById('map-panel');
+  const rect = panel.getBoundingClientRect();
+  const tip = document.getElementById('tooltip');
+  let x = e.clientX - rect.left + 14;
+  let y = e.clientY - rect.top + 14;
+  if (x + 180 > panel.clientWidth) x -= 200;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.opacity = 0;
+}
+
+function selectNode(d) {
+  selectedNode = d;
+  hideTooltip();
+
+  const links = window._graphLinkData;
+  const connectedIds = new Set();
+  links.forEach(l => {
+    const sid = typeof l.source === 'object' ? l.source.id : l.source;
+    const tid = typeof l.target === 'object' ? l.target.id : l.target;
+    if (sid === d.id) connectedIds.add(tid);
+    if (tid === d.id) connectedIds.add(sid);
+  });
+
+  window._graphNodes
+    .classed('dimmed', n => n.id !== d.id && !connectedIds.has(n.id))
+    .classed('selected', n => n.id === d.id);
+
+  window._graphLinks
+    .classed('highlighted', l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return sid === d.id || tid === d.id;
+    });
+
+  // Show info panel
+  const rank = NETWORK.top10.findIndex(t => t.id === d.id);
+  document.getElementById('info-title').textContent = `Node #${d.id}`;
+  document.getElementById('info-deg').textContent = d.degree;
+  document.getElementById('info-rank').textContent = rank >= 0 ? `#${rank+1} most connected` : 'Not in top 10';
+  document.getElementById('info-comm').style.color = COMM_COLORS[d.community];
+  document.getElementById('info-comm').textContent = COMM_NAMES[d.community];
+  document.getElementById('node-info').style.display = 'block';
+
+  // Highlight leaderboard
+  document.querySelectorAll('.leader-row').forEach(el => el.classList.remove('highlighted'));
+  const lRow = document.getElementById(`leader-${d.id}`);
+  if (lRow) lRow.classList.add('highlighted');
+}
+
+function clearSelection() {
+  selectedNode = null;
+  if (window._graphNodes) {
+    window._graphNodes.classed('dimmed', false).classed('selected', false);
+    window._graphLinks.classed('highlighted', false);
+  }
+  document.getElementById('node-info').style.display = 'none';
+  document.querySelectorAll('.leader-row').forEach(el => el.classList.remove('highlighted'));
+}
+
+function focusNode(id) {
+  if (!window._graphNodeData) return;
+  const d = window._graphNodeData.find(n => n.id === id);
+  if (!d) return;
+
+  const panel = document.getElementById('map-panel');
+  const W = panel.clientWidth, H = panel.clientHeight;
+  const scale = 2;
+  const tx = W/2 - scale*d.x;
+  const ty = H/2 - scale*d.y;
+
+  svgEl.transition().duration(600)
+    .call(zoomBehavior.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+
+  selectNode(d);
+}
+
+function searchNode(val) {
+  if (!val) { clearSelection(); return; }
+  const id = parseInt(val);
+  if (!isNaN(id)) focusNode(id);
+}
+
+function zoomIn() { svgEl.transition().call(zoomBehavior.scaleBy, 1.4); }
+function zoomOut() { svgEl.transition().call(zoomBehavior.scaleBy, 0.7); }
+function resetZoom() {
+  const panel = document.getElementById('map-panel');
+  svgEl.transition().duration(500).call(
+    zoomBehavior.transform,
+    d3.zoomIdentity.translate(panel.clientWidth/2, panel.clientHeight/2).scale(1).translate(-panel.clientWidth/2, -panel.clientHeight/2)
+  );
+}
+
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(name+'-panel').classList.add('active');
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+}
+
+// Init on load
+window.addEventListener('load', () => {
+  initNetwork();
+  setTimeout(() => {
+    const bars = document.querySelectorAll('.bar-segment');
+    bars.forEach(b => { const w = b.style.width; b.style.width='0'; setTimeout(()=>b.style.width=w,100); });
+  }, 300);
+});
+
+window.addEventListener('resize', () => {
+  if (svgEl) {
+    const p = document.getElementById('map-panel');
+    svgEl.attr('viewBox', `0 0 ${p.clientWidth} ${p.clientHeight}`);
+  }
+});
+</script>
+</body>
+</html>
