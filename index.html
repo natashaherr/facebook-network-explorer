@@ -879,10 +879,23 @@ function switchTab(name) {
 
 // Init on load
 window.addEventListener('load', () => {
-  // Defer to ensure layout is complete and panel has real dimensions
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       initNetwork();
+      // After simulation settles, re-center using actual dimensions
+      setTimeout(() => {
+        const p = document.getElementById('map-panel');
+        const W = p.clientWidth;
+        const H = p.clientHeight;
+        if (simulation && W > 100 && H > 100) {
+          svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+          simulation
+            .force('center', d3.forceCenter(W / 2, H / 2))
+            .force('charge', d3.forceManyBody().strength(-180))
+            .alpha(0.8)
+            .restart();
+        }
+      }, 200);
       setTimeout(() => {
         const bars = document.querySelectorAll('.bar-segment');
         bars.forEach(b => { const w = b.style.width; b.style.width='0'; setTimeout(()=>b.style.width=w,100); });
