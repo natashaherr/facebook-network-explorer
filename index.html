@@ -895,7 +895,9 @@ window.addEventListener('load', () => {
 
   function applySize() {
     const W = panel.clientWidth;
-    const H = panel.clientHeight;
+    // Use window.innerHeight minus header (~73px) and tab bar (~57px) as reliable fallback
+    const panelH = panel.clientHeight;
+    const H = panelH > 200 ? panelH : window.innerHeight - 130;
     if (W < 10 || H < 10) return;
     if (!initialized) {
       initialized = true;
