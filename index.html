@@ -893,7 +893,7 @@ window.addEventListener('load', () => {
 
   let initialized = false;
 
-  function startOrResize() {
+  function applySize() {
     const W = panel.clientWidth;
     const H = panel.clientHeight;
     if (W < 10 || H < 10) return;
@@ -906,14 +906,16 @@ window.addEventListener('load', () => {
     }
   }
 
-  // Try immediately, then again after short delays to catch late-settling layouts
-  setTimeout(startOrResize, 0);
-  setTimeout(startOrResize, 100);
-  setTimeout(startOrResize, 400);
-  setTimeout(startOrResize, 900);
+  // ResizeObserver handles most cases reliably
+  const ro = new ResizeObserver(() => applySize());
+  ro.observe(panel);
 
-  // Also watch for any subsequent resize
-  window.addEventListener('resize', () => setTimeout(startOrResize, 100));
+  // Fallback delays catch late-settling layouts on laptops/monitors
+  setTimeout(applySize, 50);
+  setTimeout(applySize, 300);
+  setTimeout(applySize, 800);
+
+  window.addEventListener('resize', () => setTimeout(applySize, 100));
 
   setTimeout(() => {
     const bars = document.querySelectorAll('.bar-segment');
