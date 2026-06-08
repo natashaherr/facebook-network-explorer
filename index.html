@@ -891,23 +891,29 @@ window.addEventListener('load', () => {
   buildCharts();
   const panel = document.getElementById('map-panel');
 
-  // Use ResizeObserver for reliable size detection
   let initialized = false;
-  const ro = new ResizeObserver(entries => {
-    for (const entry of entries) {
-      const W = entry.contentRect.width;
-      const H = entry.contentRect.height;
-      if (W < 10 || H < 10) continue;
-      if (!initialized) {
-        initialized = true;
-        initNetworkWithSize(W, H);
-      } else if (svgEl) {
-        svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
-        if (simulation) simulation.force('center', d3.forceCenter(W/2, H/2)).alpha(0.3).restart();
-      }
+
+  function startOrResize() {
+    const W = panel.clientWidth;
+    const H = panel.clientHeight;
+    if (W < 10 || H < 10) return;
+    if (!initialized) {
+      initialized = true;
+      initNetworkWithSize(W, H);
+    } else if (svgEl) {
+      svgEl.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+      if (simulation) simulation.force('center', d3.forceCenter(W/2, H/2)).alpha(0.5).restart();
     }
-  });
-  ro.observe(panel);
+  }
+
+  // Try immediately, then again after short delays to catch late-settling layouts
+  setTimeout(startOrResize, 0);
+  setTimeout(startOrResize, 100);
+  setTimeout(startOrResize, 400);
+  setTimeout(startOrResize, 900);
+
+  // Also watch for any subsequent resize
+  window.addEventListener('resize', () => setTimeout(startOrResize, 100));
 
   setTimeout(() => {
     const bars = document.querySelectorAll('.bar-segment');
